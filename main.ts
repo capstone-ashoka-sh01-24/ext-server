@@ -2,50 +2,49 @@ import { Hono } from "hono";
 
 const app = new Hono();
 
-// In-memory storage for key-value pairs
-const store = {};
+// Deno KV as the database
+const store = await Deno.openKv();
 
 // Create (Set a value)
 app.post("/", async (c) => {
-    const { key, value } = await c.req.json();
-    store[key] = value; // Store the value in memory
-    return c.json({ message: `Successfully Set: ${value}` });
+  try {
+    const request = c.req;
+    const json = await request.json();
+    console.log("Set:", json);
+
+    if (json.key === undefined || json.value === undefined) {
+      throw new Error("Missing field in key-value pair.");
+    }
+    const { key, value } = json;
+    const result = await store.set([key], value);
+
+    if (result.ok) {
+      return c.json({ message: `Successfully Set: ${key}` });
+    } else {
+      throw new Error(`Error while setting ${key}`);
+    }
+  } catch (e) {
+    return c.json({ error: `${e}` });
+  }
 });
 
 // Read (Get a value)
-app.get("/", async (c) => {
-    const { key } = await c.req.json();
+app.get("/:key", async (c) => {
+  try {
+    const request = c.req;
+    const key = request.param("key");
+    console.log("Get: ", key);
 
-    const value = store[key];
-    if (value !== undefined) {
-        return c.json({ key, value });
-    } else {
-        return c.json({ error: "Key not found" }, 404);
-    }
-});
+    const result = await store.get([key]);
 
-/* ------------------------------------------------------------------------
-// Update (Set a value)
-app.put("/", async (c) => {
-    const { key, value } = await c.req.json();
-    if (store[key] !== undefined) {
-        store[key] = value; // Update the existing value
-        return c.json({ message: "Value updated successfully" });
+    if (result.value === null) {
+      return c.json({ error: `Key ${key} not found.` }, 404);
     } else {
-        return c.json({ error: "Key not found" }, 404);
+      return c.json({ value: result.value });
     }
+  } catch (e) {
+    return c.json({ request: c.req.json(), error: `${e}` });
+  }
 });
-
-// Delete (Remove a value)
-app.delete("/delete", (c) => {
-    const { key } = await c.req.json();
-    if (store[key] !== undefined) {
-        delete store[key]; // Remove the key-value pair
-        return c.json({ message: "Value deleted successfully" });
-    } else {
-        return c.json({ error: "Key not found" }, 404);
-    }
-});
- */
 
 Deno.serve(app.fetch);
