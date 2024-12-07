@@ -20,7 +20,7 @@ app.post("/", async (c) => {
     const result = await store.set([key], value);
 
     if (result.ok) {
-      c.status(201);
+      c.status(200);
       return c.json({ message: `Successfully Set: ${key}` });
     } else {
       c.status(500);
